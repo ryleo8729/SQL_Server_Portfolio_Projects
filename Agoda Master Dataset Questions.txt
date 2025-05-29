@@ -1,0 +1,189 @@
+/* 1. Inner joining the flights and hotel tables together based on user_id2 with user_id and to with location
+
+I used SELECT, FROM, INNER JOIN, AS, EXEC sp_rename, and SELECT INTO functions */
+
+SELECT
+	*
+FROM
+	[Agoda Travel Data].dbo.flights AS f
+INNER JOIN
+	[Agoda Travel Data].dbo.hotels AS h ON f.user_id2 = h.user_id
+					AND f.[to] = h.location;
+
+EXEC sp_rename '[Agoda Travel Data].dbo.flights.travel_id', 'travel_id2', 'COLUMN';
+
+EXEC sp_rename '[Agoda Travel Data].dbo.flights.user_id', 'user_id2', 'COLUMN';
+
+EXEC sp_rename '[Agoda Travel Data].dbo.flights.time', 'hours', 'COLUMN';
+
+SELECT *
+INTO [Agoda Travel Data].dbo.flights_hotels_joined
+FROM [Agoda Travel Data].dbo.flights AS f
+INNER JOIN [Agoda Travel Data].dbo.hotels AS h
+    ON f.user_id2 = h.user_id
+   AND f.[to] = h.location;
+
+SELECT
+	*
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_joined
+
+/* 2. Left joining the flights_hotels_joined table with the users table based on user_id and user_id3
+
+   I used SELECT, FROM, LEFT JOIN, EXEC sp_rename, and SELECT INTO functions */
+
+EXEC sp_rename '[Agoda Travel Data].dbo.users.user_id', 'user_id3', 'COLUMN';
+
+SELECT
+	*
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_joined AS fh
+LEFT JOIN
+	[Agoda Travel Data].dbo.users AS u ON fh.user_id = u.user_id3;
+
+EXEC sp_rename '[Agoda Travel Data].dbo.users.user_id', 'user_id3', 'COLUMN';
+
+EXEC sp_rename '[Agoda Travel Data].dbo.flights_hotels_joined.name', 'hotel_name', 'COLUMN';
+
+SELECT *
+INTO [Agoda Travel Data].dbo.flights_hotels_users_joined
+FROM [Agoda Travel Data].dbo.flights_hotels_joined AS fh
+LEFT JOIN [Agoda Travel Data].dbo.users AS u
+    ON fh.user_id = u.user_id3;
+
+SELECT 
+	*
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_users_joined
+
+EXEC sp_rename '[Agoda Travel Data].dbo.flights_hotels_users_joined.travel_id2', 'flight_id', 'COLUMN';
+
+EXEC sp_rename '[Agoda Travel Data].dbo.flights_hotels_joined.travel_id', 'hotel_id', 'COLUMN';
+
+-- Now you have the final master dataset created as a table in SQL Server, ready for analysis 
+
+
+
+/* 3. See how much money each flight agency generated, ordered from greatest to least
+
+   I used SELECT, COUNT(), CAST(), ROUND(), AVG(), SUM(), DECIMAL(), FROM, GROUP BY, and ORDER BY functions */
+
+SELECT 
+	agency,
+	COUNT(*) AS num_of_flights,
+	CAST(ROUND(AVG(price), 2) AS DECIMAL(12, 2)) AS avg_flight_price,
+	CAST(ROUND(SUM(price), 2) AS DECIMAL(12, 2)) AS revenue_generated
+FROM
+	flights_hotels_users_joined
+GROUP BY
+	agency
+ORDER BY
+	revenue_generated
+	DESC;
+
+/* 4. Who are the top 10 customers
+
+   I used SELECT TOP, COUNT(), CAST(), ROUND(), AVG(), SUM(), DECIMAL(), FROM, GROUP BY, and ORDER BY functions */
+
+SELECT TOP 10
+	name,
+	COUNT(*) AS num_of_flights,
+	CAST(ROUND(AVG(price), 2) AS DECIMAL(12, 2)) AS avg_flight_price,
+	CAST(ROUND(SUM(price), 2) AS DECIMAL(12, 2)) AS revenue_generated
+FROM
+	flights_hotels_users_joined
+GROUP BY
+	name
+ORDER BY
+	revenue_generated
+	DESC;
+
+/* 5. Find all flights where the distance is greater than 500 and find which agencies booked those flights most
+
+I used SELECT, FROM, SUM(), AVG(), WHERE, GROUP BY, and ORDER BY functions*/
+
+SELECT
+	SUM(price) AS revenue_generated, 
+	AVG(distance) AS avg_distance_of_flight, 
+	agency
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_users_joined
+WHERE
+	distance > 500
+GROUP BY
+	agency
+ORDER BY
+	SUM(price)
+DESC;
+
+/* 6. Find the hotel and company that books the residents that have generated more than 500000 in revenue
+
+I used SELECT, FROM, SUM(), GROUP BY, HAVING, and ORDER BY functions */
+
+SELECT 
+	*
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_users_joined;
+
+SELECT 
+	hotel_name,
+	SUM(total_price) AS revenue_generated,
+	company,
+	[name],
+	user_id
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_users_joined
+GROUP BY
+	hotel_name, company, [name], user_id
+HAVING
+	SUM(total_price) > 500000
+ORDER BY
+	revenue_generated
+DESC
+
+/* 7. Categorize flights as Short, Medium, or Long distances
+
+I used SELECT, CASE, and FROM functions */
+
+SELECT 
+	flight_id,
+	[from],
+	[to],
+	distance,
+		CASE
+			WHEN distance < 170 THEN 'Short Flight'
+			WHEN distance >= 170 AND distance < 600 THEN 'Medium Flight'
+			ELSE 'Long Flight'
+		END AS flight_distances
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_users_joined
+
+/* Extract the year and month from the date_of_flight
+
+I used SELECT, YEAR, MONTH, DAY, and FROM functions */
+
+SELECT 
+	date_of_flight,
+	YEAR(date_of_flight) AS year_of_flight,
+	MONTH(date_of_flight) AS month_of_flight,
+	DAY(date_of_flight) AS day_of_flight
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_users_joined;
+
+/* Only retrieve the flight_id, from, and to for flights that lasted less than 1 hour
+
+I used Subqueries*/
+
+SELECT 
+	*
+FROM
+	[Agoda Travel Data].dbo.flights_hotels_users_joined;
+
+SELECT
+	flight_id,
+	[from],
+	[to],
+	hours
+FROM 
+	[Agoda Travel Data].dbo.flights_hotels_users_joined
+WHERE hours IN (SELECT hours FROM [Agoda Travel Data].dbo.flights_hotels_users_joined WHERE hours < 1)
